@@ -1,5 +1,5 @@
 /*
-Adafruit Arduino - Lesson 3. RGB LED
+Barbacolor: make Barbabenno cycle through rainbow colors using an Arduino Nano, an electret microphone and a RGB LED.
 */
 
 int redPin = 11;
@@ -7,7 +7,7 @@ int greenPin = 10;
 int bluePin = 9;
 
 const int micPin = A0;
-const int drempel = 5; // Stel hiermee de gevoeligheid in. Lager is gevoeliger, minimumwaarde is 2.
+const int drempel = 5; //Sensitivity
 
 int value1 = 0;
 int value2 = 0;
@@ -20,10 +20,13 @@ inline static float sqr(float x) {
     return x*x;
 }
 
-// Struct 
+// Struct to store Audio signal in 
 struct AudioSignal {
     int array[len_signal];
 } ;
+
+// Rainbow colors from wikipedia
+
 //Red (web color) (Hex: #FF0000) (RGB: 255, 0, 0)
 //Orange (color wheel Orange) (Hex: #FF7F00) (RGB: 255, 127, 0)
 //Yellow (web color) (Hex: #FFFF00) (RGB: 255, 255, 0)
@@ -69,7 +72,7 @@ void Barbabenno::Update(float signal_variance) {
       } else {BarbaState = 0;}
       setColor(BarbaState);
     }
-    // Hard klappen discomodus!
+    // Really loud clap: discomodus!
     if(signal_variance >= 700) {
       Serial.print("Discomodus");
       Serial.println();
@@ -99,22 +102,19 @@ Barbabenno bb;
 
 void setup() 
 {
-
-  Serial.begin(9600); 
-  //setColor(0, 100, 0); 
-  //setColor(4);  
-  //delayMicroseconds(1000);
-  //bb.SetState(4);
-
+  Serial.begin(9600); // for debugging / calibration
 }
  
 void loop()
 {
   AudioSignal my_as;
   float signal_variance;
+
+  // detect start of sound
   value1 = analogRead(micPin);
   delayMicroseconds(100);
   value2 = analogRead(micPin);
+  
   if (abs(value2 - value1) >= drempel) {   
     Serial.print("value1: ");
     Serial.print(value1);
@@ -122,30 +122,21 @@ void loop()
     Serial.print("value2: ");
     Serial.print(value2);
     Serial.println();
+
+    // Take longer audio signal for loudness detection
     my_as = readSignal(10);
+    // calculate "loudness" (variance of the signal)
     signal_variance = CalcVariance(my_as);
+    
     Serial.print("signal variance: ");
     Serial.print(signal_variance);
     Serial.println();
     bb.Update(signal_variance);
-    //writeSignal(my_as);
-//    if(signal_variance > 50) {
-//      //setColor(100, 0, 0); 
-//      //setColor(0);
-//      bb.SetState(0);
-//    } else {
-//     //setColor(0, 0, 100); 
-//      //setColor(1);
-//      bb.SetState(1);
-//    }
     delay(500);
-    //setColor(4); 
-    //bb.SetState(4);
   }
 }
 
 void setColor(int BarbaState)
-//void setColor(int red, int green, int blue)
 {
   int red = BarbaStateColors[BarbaState][0];
   int green = BarbaStateColors[BarbaState][1];
@@ -162,7 +153,7 @@ void setColor(int BarbaState)
 }
 
 
-// sample n keer met delay_time
+// sample n times met delay_time
 struct AudioSignal readSignal(int delay_time){
   AudioSignal my_as;
   for(int i = 0; i < len_signal; i++){
@@ -172,14 +163,16 @@ struct AudioSignal readSignal(int delay_time){
   return my_as;
 }
 
+// write signal to serial line for debugging
 void writeSignal(AudioSignal my_as){
   for (int i = 0; i < len_signal; i++) {
   Serial.println(my_as.array[i]);
   }
 }
 
+// calculate variance of signal ("loudness")
 float CalcVariance(AudioSignal my_as){
-  // calculate mean
+  // first calculate mean
   float Mean = 0;
   
   for (int i = 0; i < len_signal; i++) {
@@ -187,7 +180,7 @@ float CalcVariance(AudioSignal my_as){
   }
   Mean = Mean/(float) len_signal;
   
-  // calculate variance
+  // then calculate variance
   float avgVariance = 0;
 
   for (int i = 0; i < len_signal; i++) {
