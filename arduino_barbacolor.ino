@@ -12,6 +12,12 @@ const int drempel = 5; //Sensitivity
 int value1 = 0;
 int value2 = 0;
 
+const int n_intensities = 24;
+const int stepTime = 100; // cycle time intensities in ms
+
+float barbaIntensityScales[n_intensities] = {0, 0.02, 0.05, 0.1, 0.18, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 0.9, 1.0, 
+0.9, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2, 0.18, 0.1, 0.05, 0.02};
+
 #define COMMON_ANODE
 
 const int len_signal = 100;
@@ -50,7 +56,9 @@ class Barbabenno
 {
   // Class Member Variables
   int BarbaState;     
-
+  int barbaIntensityState;
+  unsigned long previousMillis;
+  
   public:
     Barbabenno()
     {
@@ -58,11 +66,15 @@ class Barbabenno
       pinMode(greenPin, OUTPUT);
       pinMode(bluePin, OUTPUT);  
       BarbaState = 1;
-      setColor(BarbaState);
+      barbaIntensityState = 7;
+      previousMillis = 0;
+      setColor();
     };
 
     void Update(float signal_variance);
-    void SetState(int BarbaState);
+    void SetState();
+    void UpdateIntensity(unsigned long currentMillis);
+    void setColor();
 };
 
 void Barbabenno::Update(float signal_variance) {
@@ -70,35 +82,76 @@ void Barbabenno::Update(float signal_variance) {
       if(BarbaState+1 < n_states){
         BarbaState = BarbaState + 1;
       } else {BarbaState = 0;}
-      setColor(BarbaState);
+      Barbabenno::setColor();
     }
     // Really loud clap: discomodus!
     if(signal_variance >= 700) {
       Serial.print("Discomodus");
       Serial.println();
+      barbaIntensityState = 12;
       for(int i = 0; i < n_states; i++){
-        setColor(i); 
+        BarbaState = i;
+        Barbabenno::setColor(); 
         delay(200);
-        setColor(n_states-1);
+        // turn off
+        BarbaState = n_states-1;
+        Barbabenno::setColor();
         delay(200);
       }
       for(int i = n_states-2; i > 0; i--){
-        setColor(i); 
+        BarbaState = i;
+        Barbabenno::setColor(); 
         delay(200);
-        setColor(n_states-1);
+        BarbaState = n_states-1;
+        Barbabenno::setColor();
         delay(200);
       }
     }
     
 };
 
-void Barbabenno::SetState(int BarbaState){
-    setColor(BarbaState);
+void Barbabenno::SetState(){
+    Barbabenno::setColor();
 };
 
+void Barbabenno::UpdateIntensity(unsigned long currentMillis){
+    if(currentMillis - previousMillis > stepTime) {
+      previousMillis = currentMillis;  
+      if(barbaIntensityState+1 < n_intensities){
+        barbaIntensityState = barbaIntensityState + 1;
+      } else {barbaIntensityState = 0;}
+      Barbabenno::setColor();
+    }
+};
+
+void Barbabenno::setColor(){
+  int red = BarbaStateColors[BarbaState][0];
+  int green = BarbaStateColors[BarbaState][1];
+  int blue = BarbaStateColors[BarbaState][2];
+
+  // scale rgb's according to barbaIntensityState
+  red = (int) ((float) red * barbaIntensityScales[barbaIntensityState]);
+  Serial.print("red: ");
+  Serial.print(red);
+  green = (int) ((float) green * barbaIntensityScales[barbaIntensityState]);
+  Serial.print("green: ");
+  Serial.print(green);
+  blue = (int) ((float) blue * barbaIntensityScales[barbaIntensityState]);
+  Serial.print("blue: ");
+  Serial.print(blue);
+
+  #ifdef COMMON_ANODE
+  red = 255 - red;
+  green = 255 - green;
+  blue = 255 - blue;
+  #endif
+  
+  analogWrite(redPin, red);
+  analogWrite(greenPin, green);
+  analogWrite(bluePin, blue);  
+}
 
 Barbabenno bb;
-
 
 void setup() 
 {
@@ -109,13 +162,16 @@ void loop()
 {
   AudioSignal my_as;
   float signal_variance;
-
+  
   // detect start of sound
   value1 = analogRead(micPin);
   delayMicroseconds(100);
   value2 = analogRead(micPin);
-  
+  unsigned long currentMillis = millis();
+  bb.UpdateIntensity(currentMillis); // check if intensity needs to be changed (Every onTime ms)
+    
   if (abs(value2 - value1) >= drempel) {   
+  
     Serial.print("value1: ");
     Serial.print(value1);
     Serial.println();
@@ -135,23 +191,6 @@ void loop()
     delay(500);
   }
 }
-
-void setColor(int BarbaState)
-{
-  int red = BarbaStateColors[BarbaState][0];
-  int green = BarbaStateColors[BarbaState][1];
-  int blue = BarbaStateColors[BarbaState][2];
-  
-  #ifdef COMMON_ANODE
-    red = 255 - red;
-    green = 255 - green;
-    blue = 255 - blue;
-  #endif
-  analogWrite(redPin, red);
-  analogWrite(greenPin, green);
-  analogWrite(bluePin, blue);  
-}
-
 
 // sample n times met delay_time
 struct AudioSignal readSignal(int delay_time){
